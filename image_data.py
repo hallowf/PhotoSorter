@@ -21,7 +21,7 @@ def get_minimum_creation_time(exif_data):
         # case 5-9: when creationTime is set, prefere it over the others
         creation_time = date_time
 
-    return creationTime
+    return creation_time
 
 def get_image_resolution(image):
     res = None
@@ -33,6 +33,10 @@ def get_image_resolution(image):
         raise
     return res
 
-img_dir = os.path.abspath("TEST_IMAGES")
-for img in os.listdir("TEST_IMAGES"):
-    print(get_image_resolution("%s/%s" % (img_dir, img)))
+def get_image_size(image):
+    size = None
+    try:
+        size = os.stat(image).st_size
+    except Exception as e:
+        raise
+    return size
