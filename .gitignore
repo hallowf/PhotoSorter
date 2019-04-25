@@ -3,3 +3,4 @@ TEST_OUTPUT
 __pycache__
 venv
 sort-*
+*.pckl

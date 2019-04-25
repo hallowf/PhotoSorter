@@ -12,6 +12,7 @@ class MainWindow(wx.Frame):
         self.settings = None
         self.user_values = None
         self.retries = 0
+        self.sort_by = "size"
         # Main components ---------------------------------
         wx.Frame.__init__(self, parent, title=title, size=(650,600), style=wx.DEFAULT_FRAME_STYLE ^ wx.RESIZE_BORDER)
         self.CreateStatusBar() # A Statusbar in the bottom of the window
@@ -22,17 +23,20 @@ class MainWindow(wx.Frame):
         file_menu = wx.Menu()
 
         # wx.ID_ABOUT and wx.ID_EXIT are standard IDs provided by wxWidgets.
+        menu_save = file_menu.Append(wx.ID_ANY, "&Save", "Save your current values to a file")
         menu_about = file_menu.Append(wx.ID_ABOUT, "&About","Information about this program")
         file_menu.AppendSeparator()
         menu_exit = file_menu.Append(wx.ID_EXIT,"&Exit","Terminate the program")
 
-        options_menu = wx.Menu()
+        self.options_menu = wx.Menu()
 
-        options_sort_remaining = options_menu.Append(wx.ID_ANY, "&Sort remaining", "Sort remaining files trough size or resolution")
+        self.options_save_values = options_menu.Append(wx.ID_ANY, "&Keep values", "Save your input to a file", wx.ITEM_CHECK)
+        self.options_sort_remaining = options_menu.Append(wx.ID_ANY, "&Sort remaining", "Sort remaining files trough size or resolution", wx.ITEM_CHECK)
 
         # Creating the menubar.
         menu_bar = wx.MenuBar()
         menu_bar.Append(file_menu,"&File") # Adding the "file_menu" to the MenuBar
+        menu_bar.Append(options_menu, "&Options")
         self.SetMenuBar(menu_bar)  # Adding the MenuBar to the Frame content.
 
 
@@ -107,9 +111,10 @@ class MainWindow(wx.Frame):
         ## Events -------------------
         self.Bind(wx.EVT_MENU, self.on_about, menu_about)
         self.Bind(wx.EVT_MENU, self.on_exit, menu_exit)
+        self.Bind(wx.EVT_MENU, self.on_save, menu_save)
 
         # settings and values pickles
-        self.load_settings_and_values()
+        self.load_settings()
 
         # Show
         self.Show()
@@ -120,7 +125,7 @@ class MainWindow(wx.Frame):
         settings_loaded = False
         if not os.path.isfile("settings.pckl"):
             self.settings = {"Keep values": False}
-            pickle.dump(open("settings.pckl", "wb"))
+            pickle.dump(self.settings,open("settings.pckl", "wb"))
         else:
             self.settings = pickle.load(open("settings.pckl", "rb"))
             try:
@@ -140,14 +145,20 @@ class MainWindow(wx.Frame):
     def load_values(self):
         try:
             if self.settings["Keep values"]:
+                self.options_menu.Check(self.options_save_values.GetId(), True)
                 if not os.path.isfile("values.pckl"):
-                    values = {"Source": "", "Dest": "", "Sort by": ""}
-                    pickle.dump(open("values.pckl", "wb"))
+                    self.user_values = {"Source": "", "Dest": "", "Sort remaining": False, "Sort by": "size"}
+                    pickle.dump(self.user_values,open("values.pckl", "wb"))
                 else:
                     self.user_values = pickle.load(open("values.pckl", "rb"))
                     self.files_location = self.user_values["Source"]
                     self.files_destination = self.user_values["Dest"]
-                    # self.files_location = self.user_values["Source"]
+                    if self.user_values["Sort remaining"] == True or self.user_values["Sort remaining"] == False:
+                        self.options_menu.Check(self.options_sort_remaining.GetId(), self.user_values["Sort remaining"])
+                    if self.user_values["Sort by"] == "size":
+                        self.cb.SetSelection(0)
+                    elif self.user_values["Sort by"] == "res":
+                        self.cb.SetSelection(1)
         except KeyError:
             os.remove("values.pckl")
             if self.retries >= 5:
@@ -155,6 +166,15 @@ class MainWindow(wx.Frame):
                 self.retries = 0
             else:
                 self.load_values()
+
+    def on_save(self,_):
+        source = self.files_location or ""
+        dest = self.files_destination or ""
+        sort_rem = self.options_sort_remaining.IsChecked()
+        cb_v = self.cb.GetStringSelection()
+        sort_by = cb_v if cb_v == "size" or cb_v == "res" else "size"
+        self.user_values = {"Source": source, "Dest": dest,"Sort remaining": sort_rem,"Sort by": sort_by}
+        pickle.dump(self.user_values,open("values.pckl", "wb"))
 
 
     # directory dialogs
@@ -189,6 +209,7 @@ class MainWindow(wx.Frame):
         elif option == "" or option not in options:
             return "Option missing or invalid: %s" % option
         else:
+            self.sort_by = option
             return True
 
     # a function that is called in a new thread to sort files without
@@ -196,7 +217,7 @@ class MainWindow(wx.Frame):
     def thread_sorter(self):
         sorter = None
         try:
-            sorter = FileSorter("TEST_IMAGES", "TEST_OUTPUT")
+            sorter = FileSorter("TEST_IMAGES", "TEST_OUTPUT",sort_unknown=(self.options_sort_remaining.IsChecked(),self.sort_by))
             for progress in sorter.sort_all():
                 self.logger.AppendText(progress)
         except (WhyWouldYou, DirMissing, OutDirNotEmpty) as e:
