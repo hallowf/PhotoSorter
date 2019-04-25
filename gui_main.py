@@ -23,20 +23,20 @@ class MainWindow(wx.Frame):
         file_menu = wx.Menu()
 
         # wx.ID_ABOUT and wx.ID_EXIT are standard IDs provided by wxWidgets.
-        menu_save = file_menu.Append(wx.ID_ANY, "&Save", "Save your current values to a file")
+        menu_save = file_menu.Append(wx.ID_SAVE, "&Save", "Save your current values to a file")
         menu_about = file_menu.Append(wx.ID_ABOUT, "&About","Information about this program")
         file_menu.AppendSeparator()
         menu_exit = file_menu.Append(wx.ID_EXIT,"&Exit","Terminate the program")
 
         self.options_menu = wx.Menu()
 
-        self.options_save_values = options_menu.Append(wx.ID_ANY, "&Keep values", "Save your input to a file", wx.ITEM_CHECK)
-        self.options_sort_remaining = options_menu.Append(wx.ID_ANY, "&Sort remaining", "Sort remaining files trough size or resolution", wx.ITEM_CHECK)
+        self.options_save_values = self.options_menu.Append(wx.ID_ANY, "&Keep values", "Save your input to a file", wx.ITEM_CHECK)
+        self.options_sort_remaining = self.options_menu.Append(wx.ID_ANY, "&Sort remaining", "Sort remaining files trough size or resolution", wx.ITEM_CHECK)
 
         # Creating the menubar.
         menu_bar = wx.MenuBar()
         menu_bar.Append(file_menu,"&File") # Adding the "file_menu" to the MenuBar
-        menu_bar.Append(options_menu, "&Options")
+        menu_bar.Append(self.options_menu, "&Options")
         self.SetMenuBar(menu_bar)  # Adding the MenuBar to the Frame content.
 
 
