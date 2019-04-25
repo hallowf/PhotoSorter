@@ -125,6 +125,14 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_BUTTON, self.on_clean,self.clean_button)
         button_grid.Add(self.clean_button, pos=(0,5))
 
+        # Show values button
+        self.values_button_id = wx.NewId()
+        self.values_button = wx.Button(panel, label="Show values", id=self.values_button_id)
+        self.values_button.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
+        self.values_button.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
+        self.Bind(wx.EVT_BUTTON, self.on_show_values, self.values_button)
+        button_grid.Add(self.values_button, pos=(0,6))
+
         # Add everything to content_box
         main_box.Add(main_grid, 0, wx.ALL, 5)
         main_box.Add(self.logger)
@@ -158,7 +166,6 @@ class MainWindow(wx.Frame):
     ## Functions ------------------------------------------------
 
     def load_settings(self):
-        settings_loaded = False
         if not os.path.isfile("settings.pckl"):
             self.settings = {"Keep values": False}
             pickle.dump(self.settings,open("settings.pckl", "wb"))
@@ -166,8 +173,8 @@ class MainWindow(wx.Frame):
             self.settings = pickle.load(open("settings.pckl", "rb"))
             try:
                 keep = self.settings["Keep values"]
-                if keep == True or keep == "False":
-                    settings_loaded = True
+                if keep == True or keep == False:
+                    self.load_values()
             except KeyError:
                 os.remove("settings.pckl")
                 if self.retries >= 5:
@@ -175,8 +182,7 @@ class MainWindow(wx.Frame):
                     self.retries = 0
                 else:
                     self.load_settings()
-        if settings_loaded:
-            self.load_values()
+
 
     def load_values(self):
         try:
@@ -203,14 +209,21 @@ class MainWindow(wx.Frame):
             else:
                 self.load_values()
 
+    def on_show_values(self,_):
+        values = "Values are:\nSource: %s\nDestination: %s\nKeep values: %s\nSort by: %s\n" % (self.files_location,self.files_destination,self.options_save_values.IsChecked(),self.cb.GetStringSelection())
+        self.logger.AppendText(values)
+
     def on_save(self,_):
         source = self.files_location or ""
         dest = self.files_destination or ""
         sort_rem = self.options_sort_remaining.IsChecked()
         cb_v = self.cb.GetStringSelection()
         sort_by = cb_v if cb_v == "size" or cb_v == "res" else "size"
+        keep_vals = self.options_save_values.IsChecked()
+        settings = {"Keep values": keep_vals}
         self.user_values = {"Source": source, "Dest": dest,"Sort remaining": sort_rem,"Sort by": sort_by}
         pickle.dump(self.user_values,open("values.pckl", "wb"))
+        pickle.dump(settings,open("settings.pckl", "wb"))
 
 
     # directory dialogs
