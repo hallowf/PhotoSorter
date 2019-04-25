@@ -13,9 +13,16 @@ class MainWindow(wx.Frame):
         self.user_values = None
         self.retries = 0
         self.sort_by = "size"
+        self.descriptions = {
+            "li": "Where the files to sort are located",
+            "di": "Where to copy files and organize them",
+            "cb": "Sort remaining files by size or res *(resolution)",
+            "cl": "Clean the log above",
+            "rb": "Run sorter"
+        }
         # Main components ---------------------------------
         wx.Frame.__init__(self, parent, title=title, size=(650,600), style=wx.DEFAULT_FRAME_STYLE ^ wx.RESIZE_BORDER)
-        self.CreateStatusBar() # A Statusbar in the bottom of the window
+        self.status_bar = self.CreateStatusBar() # A Statusbar in the bottom of the window
         panel = wx.Panel(self) # Main Panel
         self.SetBackgroundColour('grey')
 
@@ -23,14 +30,14 @@ class MainWindow(wx.Frame):
         file_menu = wx.Menu()
 
         # wx.ID_ABOUT and wx.ID_EXIT are standard IDs provided by wxWidgets.
-        menu_save = file_menu.Append(wx.ID_SAVE, "&Save", "Save your current values to a file")
+        menu_save = file_menu.Append(wx.ID_SAVE, "&Save", "Save your current input to a file")
         menu_about = file_menu.Append(wx.ID_ABOUT, "&About","Information about this program")
         file_menu.AppendSeparator()
         menu_exit = file_menu.Append(wx.ID_EXIT,"&Exit","Terminate the program")
 
         self.options_menu = wx.Menu()
 
-        self.options_save_values = self.options_menu.Append(wx.ID_ANY, "&Keep values", "Save your input to a file", wx.ITEM_CHECK)
+        self.options_save_values = self.options_menu.Append(wx.ID_ANY, "&Keep values", "Load your previous saved input on startup", wx.ITEM_CHECK)
         self.options_sort_remaining = self.options_menu.Append(wx.ID_ANY, "&Sort remaining", "Sort remaining files trough size or resolution", wx.ITEM_CHECK)
 
         # Creating the menubar.
@@ -63,7 +70,10 @@ class MainWindow(wx.Frame):
         self.location.SetFont(s_font)
         self.location.SetForegroundColour("MIDNIGHT BLUE")
         main_grid.Add(self.location, pos=(2,0))
-        self.location_input = wx.Button(panel, label="Open")
+        self.location_input_id = wx.NewId()
+        self.location_input = wx.Button(panel, label="Open", id=self.location_input_id)
+        self.location_input.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
+        self.location_input.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         self.Bind(wx.EVT_BUTTON, self.on_open_location, self.location_input)
         main_grid.Add(self.location_input, pos=(2,1))
 
@@ -73,7 +83,10 @@ class MainWindow(wx.Frame):
         self.destination.SetFont(s_font)
         self.destination.SetForegroundColour("MIDNIGHT BLUE")
         main_grid.Add(self.destination, pos=(3,0))
-        self.destination_input = wx.Button(panel, label="Open")
+        self.destination_input_id = wx.NewId()
+        self.destination_input = wx.Button(panel, label="Open", id=self.destination_input_id)
+        self.destination_input.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
+        self.destination_input.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         self.Bind(wx.EVT_BUTTON, self.on_open_destination, self.destination_input)
         main_grid.Add(self.destination_input, pos=(3,1))
 
@@ -83,21 +96,32 @@ class MainWindow(wx.Frame):
         self.sort_option.SetForegroundColour("MIDNIGHT BLUE")
         main_grid.Add(self.sort_option, pos=(4,0))
         sort_options = ["size","res"]
+        self.cb_id = wx.NewId()
         self.cb = wx.ComboBox(panel,
                               size=wx.DefaultSize,
-                              choices=sort_options)
+                              choices=sort_options,
+                              id=self.cb_id)
         self.cb.SetSelection(0)
+        self.cb.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
+        self.cb.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         main_grid.Add(self.cb, pos=(4,1))
+
         # Run button
-        self.run_button = wx.Button(panel, label="Run")
+        self.run_button_id = wx.NewId()
+        self.run_button = wx.Button(panel, label="Run", id=self.run_button_id)
         self.Bind(wx.EVT_BUTTON, self.on_run, self.run_button)
+        self.run_button.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
+        self.run_button.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         main_grid.Add(self.run_button, pos=(5,0))
 
 
         ### button_grid -----------------------------------
 
         # Clean log button
-        self.clean_button = wx.Button(panel, label="Clean")
+        self.clean_button_id = wx.NewId()
+        self.clean_button = wx.Button(panel, label="Clean", id=self.clean_button_id)
+        self.clean_button.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
+        self.clean_button.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         self.Bind(wx.EVT_BUTTON, self.on_clean,self.clean_button)
         button_grid.Add(self.clean_button, pos=(0,5))
 
@@ -118,6 +142,18 @@ class MainWindow(wx.Frame):
 
         # Show
         self.Show()
+
+    ## Mouse enter/leave functions ------------------
+
+    def on_mouse_enter_button(self,e):
+        info = self.descriptions
+        buttons = {self.location_input_id: info["li"], self.destination_input_id: info["di"], self.cb_id: info["cb"],self.run_button_id: info["rb"], self.clean_button_id: info["cl"]}
+        for button in buttons:
+            if e.GetId() == button:
+                self.status_bar.SetStatusText(buttons[button])
+
+    def on_mouse_leave_button(self,e):
+        self.status_bar.SetStatusText("")
 
     ## Functions ------------------------------------------------
 
