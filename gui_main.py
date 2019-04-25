@@ -1,4 +1,4 @@
-import shutil, PIL, os, wx, threading
+import shutil, PIL, os, wx, threading, pickle
 from sorter import FileSorter
 from utils import threadsafe_generator
 from custom_exceptions import WhyWouldYou, OutDirNotEmpty, DirMissing
@@ -9,6 +9,9 @@ class MainWindow(wx.Frame):
         # Other Vars ------------------------
         self.is_sorting = False
         self.sorter_thread = None
+        self.settings = None
+        self.user_values = None
+        self.retries = 0
         # Main components ---------------------------------
         wx.Frame.__init__(self, parent, title=title, size=(650,600), style=wx.DEFAULT_FRAME_STYLE ^ wx.RESIZE_BORDER)
         self.CreateStatusBar() # A Statusbar in the bottom of the window
@@ -105,10 +108,54 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_about, menu_about)
         self.Bind(wx.EVT_MENU, self.on_exit, menu_exit)
 
+        # settings and values pickles
+        self.load_settings_and_values()
+
         # Show
         self.Show()
 
     ## Functions ------------------------------------------------
+
+    def load_settings(self):
+        settings_loaded = False
+        if not os.path.isfile("settings.pckl"):
+            self.settings = {"Keep values": False}
+            pickle.dump(open("settings.pckl", "wb"))
+        else:
+            self.settings = pickle.load(open("settings.pckl", "rb"))
+            try:
+                keep = self.settings["Keep values"]
+                if keep == True or keep == "False":
+                    settings_loaded = True
+            except KeyError:
+                os.remove("settings.pckl")
+                if self.retries >= 5:
+                    self.logger.AppendText("Failed to load settings after %s retries" % (self.retries))
+                    self.retries = 0
+                else:
+                    self.load_settings()
+        if settings_loaded:
+            self.load_values()
+
+    def load_values(self):
+        try:
+            if self.settings["Keep values"]:
+                if not os.path.isfile("values.pckl"):
+                    values = {"Source": "", "Dest": "", "Sort by": ""}
+                    pickle.dump(open("values.pckl", "wb"))
+                else:
+                    self.user_values = pickle.load(open("values.pckl", "rb"))
+                    self.files_location = self.user_values["Source"]
+                    self.files_destination = self.user_values["Dest"]
+                    # self.files_location = self.user_values["Source"]
+        except KeyError:
+            os.remove("values.pckl")
+            if self.retries >= 5:
+                self.logger.AppendText("Failed to load values after %s retries" % (self.retries))
+                self.retries = 0
+            else:
+                self.load_values()
+
 
     # directory dialogs
     def on_open_location(self, _):
@@ -131,6 +178,7 @@ class MainWindow(wx.Frame):
             self.files_destination = d_dialog.GetPath()
         self.logger.AppendText("Destination is:\n%s\n" % self.files_destination)
 
+    # Check required input to run
     def has_required(self):
         option = self.cb.GetStringSelection()
         options = ["size","res"]
@@ -143,6 +191,8 @@ class MainWindow(wx.Frame):
         else:
             return True
 
+    # a function that is called in a new thread to sort files without
+    # stopping the user interface
     def thread_sorter(self):
         sorter = None
         try:
@@ -159,6 +209,7 @@ class MainWindow(wx.Frame):
         self.logger.AppendText("Stopping sorter\n")
         self.is_sorting = False
 
+    # check if sorter is running
     def is_running_sorter(self):
         if self.sorter_thread:
             if self.sorter_thread.is_alive():
@@ -170,7 +221,7 @@ class MainWindow(wx.Frame):
         else:
             return False
 
-    # Run app
+    # Run sorter in a new thread
     def on_run(self, _):
         has_required = self.has_required()
         is_running = self.is_running_sorter()

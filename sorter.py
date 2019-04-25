@@ -7,7 +7,7 @@ from image_data import get_image_resolution, get_image_size, get_minimum_creatio
 class FileSorter(object):
     """docstring for FileSorter."""
 
-    def __init__(self, source, dest, difference=200):
+    def __init__(self, source, dest, difference=200, sort_unknown=(True,"size")):
         super(FileSorter, self).__init__()
         self.dest = os.path.abspath(dest)
         self.source = os.path.abspath(source)
@@ -33,6 +33,12 @@ class FileSorter(object):
         self.one_percent_files = self.file_number/100
         self.totalAmountToCopy = str(self.file_number)
         self.file_counter = 0
+        self.sort_possibilities = ["size","res"]
+        sort_unknown, sort_unknown_by = sort_unknown
+        if sort_unknown == True and sort_unknown_by not in self.sort_possibilities:
+            sort_unknown_by = "res"
+        self.sort_unknown = sort_unknown
+        self.sort_unknown_by = sort_unknown_by
 
     def get_number_of_files(self, start_path = '.'):
         number_of_files = 0
@@ -65,7 +71,12 @@ class FileSorter(object):
                 self.file_counter += 1
                 if(round(self.file_counter%self.one_percent_files,1) == 0.1):
                     yield(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.\n")
-        self.postprocess_images(os.path.join(self.dest, "JPG"), self.min_evt_delta_days, self.split_months)
+        final_dest = os.path.join(self.dest, "JPG")
+        self.postprocess_images(final_dest, self.min_evt_delta_days, self.split_months)
+        if self.sort_unknown:
+            yield "Sorting unknown by %s\n" % (self.sort_unknown_by)
+            map_func = self.map_by_size if self.sort_unknown_by == "size" else self.map_by_res
+            map_func(final_dest)
         yield "Done\n"
 
     def postprocess_image(self, images, image_directory, file_name):
@@ -107,7 +118,7 @@ class FileSorter(object):
         today = c_time.strftime("%d/%m/%Y")
 
         for img_tuple in sorted_images:
-            destination = ""
+            dest = ""
             dest_file_path = ""
             t = localtime(img_tuple[0])
             year = strftime("%Y", t)
@@ -116,10 +127,15 @@ class FileSorter(object):
             file_name = ntpath.basename(img_tuple[1])
 
             if(creation_date == today):
-                self.create_unknown_date_folder(dest_root)
-                destination = os.path.join(dest_root, "unknown")
-                dest_file_path = os.path.join(destination, file_name)
-
+                if self.sort_unknown:
+                    dest = os.path.join(dest_root, "unknown-to-sort")
+                    if not os.path.isdir(dest):
+                        os.mkdir(dest)
+                    dest_file_path = os.path.join(dest,file_name)
+                else:
+                    self.create_unknown_date_folder(dest_root)
+                    dest = os.path.join(dest_root, "unknown")
+                    dest_file_path = os.path.join(dest, file_name)
             else:
                 if (previous_time == None) or ((previous_time + min_evt_delta) < img_tuple[0]):
                     evt_number = evt_number + 1
@@ -129,19 +145,19 @@ class FileSorter(object):
 
                 dest_components = [dest_root, year, month, str(evt_number)]
                 dest_components = [v for v in dest_components if v is not None]
-                destination = os.path.join(*dest_components)
+                dest = os.path.join(*dest_components)
 
                 # it may be possible that an event covers 2 years.
                 # in such a case put all the images to the event in the old year
-                if not (os.path.exists(destination)):
-                    destination = previous_dest
-                    # destination = os.path.join(dest_root, str(int(year) - 1), str(evt_number))
+                if not (os.path.exists(dest)):
+                    dest = previous_dest
+                    # dest = os.path.join(dest_root, str(int(year) - 1), str(evt_number))
 
-                previous_dest = destination
-                dest_file_path = os.path.join(destination, file_name)
+                previous_dest = dest
+                dest_file_path = os.path.join(dest, file_name)
 
             if not (os.path.exists(dest_file_path)):
-                shutil.move(img_tuple[1], destination)
+                shutil.move(img_tuple[1], dest)
             else:
                 if (os.path.exists(img_tuple[1])):
                     os.remove(img_tuple[1])
@@ -158,12 +174,6 @@ class FileSorter(object):
             new_path = os.path.join(dest_root, year, str(evt_number))
         if not os.path.exists(new_path):
             os.makedirs(new_path)
-
-    def make_out_dirs(self):
-        for dir in self.sized_dirs:
-            dir = os.path.join(self.dest,str(dir))
-            if not os.path.isdir(dir):
-                os.mkdir(dir)
 
     def check_location(self, skip_some=False):
         loc_items = os.listdir(self.source)
