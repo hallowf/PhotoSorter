@@ -1,4 +1,4 @@
-import shutil, PIL, os, wx, threading, pickle
+import shutil, PIL, os, wx, threading, pickle, logging, sys
 from sorter import FileSorter
 from utils import threadsafe_generator
 from custom_exceptions import WhyWouldYou, OutDirNotEmpty, DirMissing
@@ -17,9 +17,13 @@ class MainWindow(wx.Frame):
             "li": "Where the files to sort are located",
             "di": "Where to copy files and organize them",
             "cb": "Sort remaining files by size or res *(resolution)",
-            "cl": "Clean the log above",
+            "cb": "Clean the log above",
+            "vb": "Show current values selected",
             "rb": "Run sorter"
         }
+        # Console logger
+        # logger is initialized in load_settings
+        self.logger = None
         # Main components ---------------------------------
         wx.Frame.__init__(self, parent, title=title, size=(650,600), style=wx.DEFAULT_FRAME_STYLE ^ wx.RESIZE_BORDER)
         self.status_bar = self.CreateStatusBar() # A Statusbar in the bottom of the window
@@ -58,10 +62,10 @@ class MainWindow(wx.Frame):
         ### main_grid -----------------------------------
         # Logger
         l_font = wx.Font(13, wx.MODERN, wx.NORMAL, wx.NORMAL)
-        self.logger = wx.TextCtrl(self, size=(390,300), style=wx.TE_MULTILINE | wx.TE_READONLY)
-        self.logger.SetBackgroundColour((3, 62, 78))
-        self.logger.SetForegroundColour((172, 180, 182))
-        self.logger.SetFont(l_font)
+        self.gui_logger = wx.TextCtrl(self, size=(390,300), style=wx.TE_MULTILINE | wx.TE_READONLY)
+        self.gui_logger.SetBackgroundColour((3, 62, 78))
+        self.gui_logger.SetForegroundColour((172, 180, 182))
+        self.gui_logger.SetFont(l_font)
 
         # Files to sort
         s_font = wx.Font(11, wx.MODERN, wx.NORMAL, wx.NORMAL)
@@ -135,7 +139,7 @@ class MainWindow(wx.Frame):
 
         # Add everything to content_box
         main_box.Add(main_grid, 0, wx.ALL, 5)
-        main_box.Add(self.logger)
+        main_box.Add(self.gui_logger)
         content_box.Add(main_box, 0, wx.ALL, 5)
         content_box.Add(button_grid, 0, wx.ALL, 5)
         self.SetSizerAndFit(content_box)
@@ -155,7 +159,14 @@ class MainWindow(wx.Frame):
 
     def on_mouse_enter_button(self,e):
         info = self.descriptions
-        buttons = {self.location_input_id: info["li"], self.destination_input_id: info["di"], self.cb_id: info["cb"],self.run_button_id: info["rb"], self.clean_button_id: info["cl"]}
+        buttons = {
+            self.location_input_id: info["li"],
+            self.destination_input_id: info["di"],
+            self.cb_id: info["cb"],
+            self.run_button_id: info["rb"],
+            self.clean_button_id: info["cb"],
+            self.values_button_id: info["vb"]
+        }
         for button in buttons:
             if e.GetId() == button:
                 self.status_bar.SetStatusText(buttons[button])
@@ -165,20 +176,39 @@ class MainWindow(wx.Frame):
 
     ## Functions ------------------------------------------------
 
+    def set_up_logger(self):
+        l_levels = ["info","warning","debug","error"]
+        l_level = self.settings["Log level"]
+        if l_level not in l_levels:
+            sys.stdout.write("Invalid log level: %s\n" % (l_level))
+            l_level = "info"
+            numeric_level = getattr(logging, logLevel.upper(), 10)
+        # Console logger
+        log_format = "%(name)s - %(level)s: %(message)s"
+        logging.basicConfig(format=log_format)
+        self.logger = logging.getLogger("PhotoSorter")
+
     def load_settings(self):
         if not os.path.isfile("settings.pckl"):
-            self.settings = {"Keep values": False}
+            self.settings = {"Keep values": False, "Log level": "info"}
             pickle.dump(self.settings,open("settings.pckl", "wb"))
+            self.set_up_logger()
         else:
             self.settings = pickle.load(open("settings.pckl", "rb"))
             try:
+                self.set_up_logger()
                 keep = self.settings["Keep values"]
+                # `if keep or not keep:` sounds a good idea,
+                # but the values must be boolean and not "something" or  1
                 if keep == True or keep == False:
+                    self.logger.debug("Setting loaded successfully")
                     self.load_values()
             except KeyError:
+                self.logger.warning("Invalid settings found, removing file")
                 os.remove("settings.pckl")
                 if self.retries >= 5:
-                    self.logger.AppendText("Failed to load settings after %s retries" % (self.retries))
+                    self.logger.warning("Failed to load settings after %s retries" % (self.retries))
+                    self.gui_logger.AppendText("Failed to load settings after %s retries\n" % (self.retries))
                     self.retries = 0
                 else:
                     self.load_settings()
@@ -187,8 +217,10 @@ class MainWindow(wx.Frame):
     def load_values(self):
         try:
             if self.settings["Keep values"]:
+                self.logger.debug("Loading user values")
                 self.options_menu.Check(self.options_save_values.GetId(), True)
                 if not os.path.isfile("values.pckl"):
+                    self.logger.debug("Values file does not exist, creating one now")
                     self.user_values = {"Source": "", "Dest": "", "Sort remaining": False, "Sort by": "size"}
                     pickle.dump(self.user_values,open("values.pckl", "wb"))
                 else:
@@ -202,17 +234,25 @@ class MainWindow(wx.Frame):
                     elif self.user_values["Sort by"] == "res":
                         self.cb.SetSelection(1)
         except KeyError:
+            self.logger.warning("Invalid values found, removing file")
             os.remove("values.pckl")
             if self.retries >= 5:
-                self.logger.AppendText("Failed to load values after %s retries" % (self.retries))
+                self.gui_logger.AppendText("Failed to load values after %s retries" % (self.retries))
                 self.retries = 0
             else:
                 self.load_values()
 
+    # Show values on gui logger
     def on_show_values(self,_):
-        values = "Values are:\nSource: %s\nDestination: %s\nKeep values: %s\nSort by: %s\n" % (self.files_location,self.files_destination,self.options_save_values.IsChecked(),self.cb.GetStringSelection())
-        self.logger.AppendText(values)
+        s = "Source: %s\n" % (self.files_location)
+        d = "Destination: %s\n" % (self.files_destination)
+        kv = "Keep values: %s\n" % (self.options_save_values.IsChecked())
+        sb = "Sort by: %s\n" % (self.cb.GetStringSelection())
+        values = "Values are:\n%s%s%s%s" % (s,d,kv,sb)
+        self.logger.debug(values)
+        self.gui_logger.AppendText(values)
 
+    # Save user settings and input to file
     def on_save(self,_):
         source = self.files_location or ""
         dest = self.files_destination or ""
@@ -222,8 +262,10 @@ class MainWindow(wx.Frame):
         keep_vals = self.options_save_values.IsChecked()
         settings = {"Keep values": keep_vals}
         self.user_values = {"Source": source, "Dest": dest,"Sort remaining": sort_rem,"Sort by": sort_by}
-        pickle.dump(self.user_values,open("values.pckl", "wb"))
+        self.logger.debug("Saving settings:\n%s" % (settings))
+        self.logger.debug("Saving values:\n%s" % (self.user_values))
         pickle.dump(settings,open("settings.pckl", "wb"))
+        pickle.dump(self.user_values,open("values.pckl", "wb"))
 
 
     # directory dialogs
@@ -235,7 +277,7 @@ class MainWindow(wx.Frame):
                 return     # the user changed their mind
             # get the path
             self.files_location = d_dialog.GetPath()
-        self.logger.AppendText("Source is:\n%s\n" % self.files_location)
+        self.gui_logger.AppendText("Source is:\n%s\n" % self.files_location)
 
     def on_open_destination(self, _):
          # otherwise ask the user what new file to open
@@ -245,20 +287,24 @@ class MainWindow(wx.Frame):
                 return     # the user changed their mind
             # get the path
             self.files_destination = d_dialog.GetPath()
-        self.logger.AppendText("Destination is:\n%s\n" % self.files_destination)
+        self.gui_logger.AppendText("Destination is:\n%s\n" % self.files_destination)
 
     # Check required input to run
     def has_required(self):
         option = self.cb.GetStringSelection()
         options = ["size","res"]
         if not self.files_location or not self.files_destination:
-            return "Destination or location missing"
+            self.logger.debug("Destination or location missing")
+            return "Destination or location missing\n"
         elif not os.path.isdir(self.files_location):
-            return "Files location is not a valid path"
+            self.logger.debug("Files location is not a valid path")
+            return "Files location is not a valid path\n"
         elif option == "" or option not in options:
-            return "Option missing or invalid: %s" % option
+            self.logger.debug("Option missing or invalid: %s" % option)
+            return "Option missing or invalid: %s\n" % option
         else:
             self.sort_by = option
+            self.logger.debug("Sorter has everything required")
             return True
 
     # a function that is called in a new thread to sort files without
@@ -268,25 +314,28 @@ class MainWindow(wx.Frame):
         try:
             sorter = FileSorter("TEST_IMAGES", "TEST_OUTPUT",sort_unknown=(self.options_sort_remaining.IsChecked(),self.sort_by))
             for progress in sorter.sort_all():
-                self.logger.AppendText(progress)
+                self.gui_logger.AppendText(progress)
         except (WhyWouldYou, DirMissing, OutDirNotEmpty) as e:
             if e.__class__.__name__ == "WhyWouldYou":
-                self.logger.AppendText("Your source path does not contain any relevant files\n")
+                self.gui_logger.AppendText("Your source path does not contain any relevant files\n")
             elif e.__class__.__name__ == "DirMissing":
-                self.logger.AppendText("Your source path does not exist\n")
+                self.gui_logger.AppendText("Your source path does not exist\n")
             elif e.__class__.__name__ == "OutDirNotEmpty":
-                self.logger.AppendText("Destination is not empty, failed to run\n")
-        self.logger.AppendText("Stopping sorter\n")
+                self.gui_logger.AppendText("Destination is not empty, failed to run\n")
+        self.gui_logger.AppendText("Stopping sorter\n")
         self.is_sorting = False
 
     # check if sorter is running
     def is_running_sorter(self):
+        self.logger.debug("Checking if sorter is running")
         if self.sorter_thread:
             if self.sorter_thread.is_alive():
-                self.logger.AppendText("Sorter thread is alive\n")
+                self.logger.debug("Sorter thread is alive")
+                self.gui_logger.AppendText("Sorter thread is alive\n")
                 return True
         if self.is_sorting:
-            self.logger.AppendText("Sorter is running\n")
+            self.logger.debug("Sorter is running")
+            self.gui_logger.AppendText("Sorter is running\n")
             return True
         else:
             return False
@@ -297,17 +346,17 @@ class MainWindow(wx.Frame):
         is_running = self.is_running_sorter()
         if has_required == True:
             if not is_running:
-                self.logger.AppendText("Starting sorter\n")
+                self.gui_logger.AppendText("Starting sorter\n")
+                self.logger.info("Starting sorter")
                 self.sorter_thread = threading.Thread(target=self.thread_sorter, args=())
+                self.logger.debug("Sorter thread is %s" % (self.sorter_thread))
                 self.sorter_thread.start()
-            else:
-                self.logger.AppendText("Sorter is running\n")
         else:
-            self.logger.AppendText("Failed to run:\n%s\n" % (has_required))
+            self.gui_logger.AppendText("Failed to run:\n%s" % (has_required))
 
     # Clean log
     def on_clean(self,_):
-        self.logger.SetValue("")
+        self.gui_logger.SetValue("")
 
     # Clean
     def on_about(self,_):

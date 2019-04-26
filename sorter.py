@@ -1,4 +1,4 @@
-import os, shutil, exifread, ntpath
+import os, shutil, exifread, ntpath, logging
 from datetime import datetime
 from time import localtime, mktime, strftime, strptime
 from custom_exceptions import DirMissing, OutDirNotEmpty, WhyWouldYou
@@ -9,47 +9,55 @@ class FileSorter(object):
 
     def __init__(self, source, dest, difference=200, sort_unknown=(True,"size")):
         super(FileSorter, self).__init__()
+        # File sorting parameters
         self.dest = os.path.abspath(dest)
         self.source = os.path.abspath(source)
         self.dest_items = None
         self.difference = difference
         self.f_map = None
         self.min_evt_delta_days = 4
+        self.maxNumberOfFilesPerFolder = 500
+        self.split_months = False
+        self.keep_filename = False
+        self.sort_possibilities = ["size","res"]
+        sort_unknown, sort_unknown_by = sort_unknown
+        if sort_unknown == True and sort_unknown_by not in self.sort_possibilities:
+            sort_unknown_by = "size"
+            self.sort_unknown = sort_unknown
+            self.sort_unknown_by = sort_unknown_by
+        # Logging
+        log_format = "%(name)s - %(level)s: %(message)s"
+        logging.basicConfig(format=log_format)
+        self.logger = logging.getLogger("File sorter")
+        # Check requirements and create sized dirs
         try:
             self.check_location()
         except (WhyWouldYou, DirMissing, OutDirNotEmpty) as e:
             raise e
-        self.from_dir = os.path.abspath(self.source)
-        self.to_dir = os.path.abspath(self.dest)
         self.sized_dirs = []
         times = 1
         for i in range(10):
             self.sized_dirs.append(difference*times)
             times = times+1
-        self.maxNumberOfFilesPerFolder = 500
-        self.split_months = False
-        self.keep_filename = False
+        # File info
         self.file_number = self.get_number_of_files(source)
         self.one_percent_files = self.file_number/100
         self.totalAmountToCopy = str(self.file_number)
         self.file_counter = 0
-        self.sort_possibilities = ["size","res"]
-        sort_unknown, sort_unknown_by = sort_unknown
-        if sort_unknown == True and sort_unknown_by not in self.sort_possibilities:
-            sort_unknown_by = "res"
-        self.sort_unknown = sort_unknown
-        self.sort_unknown_by = sort_unknown_by
 
+    # Returns number of files from start dir
     def get_number_of_files(self, start_path = '.'):
+        self.logger.debug("Checking number of files to sort")
         number_of_files = 0
         for dirpath, dirnames, filenames in os.walk(start_path):
             for f in filenames:
                 fp = os.path.join(dirpath, f)
                 if(os.path.isfile(fp)):
                     number_of_files += 1
+        self.logger.debug("Found %s files" % (number_of_files))
         return number_of_files
 
-
+    # Main function for sorting
     def sort_all(self):
         for root, dirs, files in os.walk(self.source, topdown=False):
             for file in files:
@@ -70,10 +78,13 @@ class FileSorter(object):
 
                 self.file_counter += 1
                 if(round(self.file_counter%self.one_percent_files,1) == 0.1):
+                    self.logger.info(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.")
                     yield(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.\n")
         final_dest = os.path.join(self.dest, "JPG")
+        self.logger.info("Sorting images in %s by date" % (final_dest))
         self.postprocess_images(final_dest, self.min_evt_delta_days, self.split_months)
         if self.sort_unknown:
+            self.logger.info("Sorting unknown by %s" % (self.sort_unknown_by))
             yield "Sorting unknown by %s\n" % (self.sort_unknown_by)
             map_func = self.map_by_size if self.sort_unknown_by == "size" else self.map_by_res
             map_func(final_dest)
@@ -87,7 +98,8 @@ class FileSorter(object):
             exifTags = exifread.process_file(image, details=False)
             creation_time = get_minimum_creation_time(exifTags)
         except:
-            print("invalid exif tags for " + file_name)
+            self.logger.warning("invalid exif tags for %s" % (file_name))
+            yield "invalid exif tags for %s\n" % (file_name)
 
         # distinct different time types
         if creation_time is None:
@@ -95,7 +107,7 @@ class FileSorter(object):
         else:
             try:
                 creation_time = strptime(str(creation_time), "%Y:%m:%d %H:%M:%S")
-            except Exception as e:
+            except:
                 creation_time = localtime(os.path.getctime(image_path))
         images.append((mktime(creation_time), image_path))
         image.close()
@@ -137,6 +149,7 @@ class FileSorter(object):
                     dest = os.path.join(dest_root, "unknown")
                     dest_file_path = os.path.join(dest, file_name)
             else:
+                self.logger.debug("%s was created in %s" % (file_name, creation_date))
                 if (previous_time == None) or ((previous_time + min_evt_delta) < img_tuple[0]):
                     evt_number = evt_number + 1
                     self.create_new_folder(dest_root, year, month, evt_number)
@@ -176,6 +189,7 @@ class FileSorter(object):
             os.makedirs(new_path)
 
     def check_location(self, skip_some=False):
+        self.logger.debug("Checking source and destination before starting")
         loc_items = os.listdir(self.source)
         if not skip_some:
             if not os.path.isdir(self.source):
@@ -194,7 +208,7 @@ class FileSorter(object):
                 raise WhyWouldYou
 
     def map_by_size(self, source):
-        print("Mapping by size")
+        yield "Mapping by size"
         f_map = {size:[] for size in reversed(self.sized_dirs)}
         for root, sub_folders, files in os.walk(source):
             for file in files:
@@ -210,7 +224,7 @@ class FileSorter(object):
         return f_map
 
     def map_by_res(self, source):
-        print("Mapping by res")
+        yield "Mapping by res"
         f_map = {size:[] for size in reversed(self.sized_dirs)}
         for root, sub_folders, files in os.walk(source):
             for file in files:
@@ -219,10 +233,7 @@ class FileSorter(object):
                 x,y = get_image_resolution(f_path)
                 for size in f_map:
                     if not found:
-                        if x >= size:
-                            f_map[size].append(f_path)
-                            found = True
-                        elif y >= size:
+                        if x >= size or y >= size:
                             f_map[size].append(f_path)
                             found = True
         self.f_map = f_map
