@@ -19,8 +19,8 @@ description: >- # this means to ignore newlines until "baseurl:"
   PhotoSorter easily sort you picture by the dates they where taken,
   and if they don't have any date you can choose to sort them by
   size or resolution
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "" # the base hostname & protocol for your site, e.g. http://example.com
+baseurl: "PhotoSorter" # the subpath of your site, e.g. /blog
+url: "https://hallowf.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username:
 github_username:  hallowf
 
