@@ -1,6 +1,8 @@
-import shutil, PIL, argparse
+import shutil, argparse
 
-def add_and_parse_args():
+from core.sorter import FileSorter
+
+def parse_and_return_args():
     description = (
         "Sort files by date\n"
         "The input files are first copied to the destination, sorted by file type.\n"
@@ -16,7 +18,7 @@ def add_and_parse_args():
 
 
 def run_main():
-    print("main")
+    args = parse_and_return_args()
 
 
 

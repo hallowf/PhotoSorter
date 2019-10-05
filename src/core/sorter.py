@@ -21,14 +21,14 @@ class FileSorter(object):
         self.keep_filename = False
         self.sort_possibilities = ["size","res"]
         sort_unknown, sort_unknown_by = sort_unknown
+        # check if sorting parameters are correct and default them if not
         if sort_unknown == True and sort_unknown_by not in self.sort_possibilities:
-            sort_unknown_by = "size"
             self.sort_unknown = sort_unknown
-            self.sort_unknown_by = sort_unknown_by
-        # Logging
+            self.sort_unknown_by = "size"
+        # set up logging
         log_format = "%(name)s - %(level)s: %(message)s"
         logging.basicConfig(format=log_format)
-        self.logger = logging.getLogger("File sorter")
+        self.logger = logging.getLogger("PhotoSorter")
         # Check requirements and create sized dirs
         try:
             self.check_location()
@@ -59,6 +59,7 @@ class FileSorter(object):
 
     # Main function for sorting
     def sort_all(self):
+        # iterate trough all files in source
         for root, dirs, files in os.walk(self.source, topdown=False):
             for file in files:
                 extension = os.path.splitext(file)[1][1:].upper()
@@ -76,19 +77,33 @@ class FileSorter(object):
                 if not os.path.exists(destination_file):
                     shutil.copy2(source_path, destination_file)
 
+                # check and yield progress
                 self.file_counter += 1
                 if(round(self.file_counter%self.one_percent_files,1) == 0.1):
                     self.logger.info(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.")
                     yield(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.\n")
-        final_dest = os.path.join(self.dest, "JPG")
+
+        # this needs to be moved onto another function to avoid a high cyclomatic complexity
+        final_dest = os.path.join(self.dest, "PROCESSED")
         self.logger.info("Sorting images in %s by date" % (final_dest))
         self.postprocess_images(final_dest, self.min_evt_delta_days, self.split_months)
         if self.sort_unknown:
-            self.logger.info("Sorting unknown by %s" % (self.sort_unknown_by))
-            yield "Sorting unknown by %s\n" % (self.sort_unknown_by)
+            self.logger.info("Sorting unknown files by %s" % (self.sort_unknown_by))
+            yield "Sorting unknown files by %s\n" % (self.sort_unknown_by)
             map_func = self.map_by_size if self.sort_unknown_by == "size" else self.map_by_res
             map_func(final_dest)
         yield "Done\n"
+
+    # Iterates trough the processed image dir, processes each individual file
+    # and passes the images to write_images
+    def postprocess_images(self, image_dir, min_evt_delta_days, split_by_month):
+        images = []
+        for root, dirs, files in os.walk(image_dir):
+            for file in files:
+                self.postprocess_image(images, image_dir, file)
+
+        self.write_images(images, image_dir, min_evt_delta_days, split_by_month)
+
 
     def postprocess_image(self, images, image_directory, file_name):
         image_path = os.path.join(image_directory, file_name)
@@ -111,14 +126,6 @@ class FileSorter(object):
                 creation_time = localtime(os.path.getctime(image_path))
         images.append((mktime(creation_time), image_path))
         image.close()
-
-    def postprocess_images(self, image_dir, min_evt_delta_days, split_by_month):
-        images = []
-        for root, dirs, files in os.walk(image_dir):
-            for file in files:
-                self.postprocess_image(images, image_dir, file)
-
-        self.write_images(images, image_dir, min_evt_delta_days, split_by_month)
 
     def write_images(self, images, dest_root, min_evt_delta_days, split_by_month=False):
         min_evt_delta = min_evt_delta_days * 60 * 60 * 24 # convert in seconds
@@ -189,7 +196,7 @@ class FileSorter(object):
             os.makedirs(new_path)
 
     def check_location(self, skip_some=False):
-        self.logger.debug("Checking source and destination before starting")
+        self.logger.info("Checking source and destination before starting")
         loc_items = os.listdir(self.source)
         if not skip_some:
             if not os.path.isdir(self.source):

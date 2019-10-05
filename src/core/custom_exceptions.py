@@ -1,5 +1,5 @@
 class DirMissing(Exception):
-    """docstring for CheatsMissing."""
+    """docstring"""
     pass
 
 class OutDirNotEmpty(Exception):
