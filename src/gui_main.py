@@ -1,11 +1,14 @@
 import shutil, PIL, os, wx, threading, pickle, logging, sys
-from sorter import FileSorter
-from utils import threadsafe_generator
-from custom_exceptions import WhyWouldYou, OutDirNotEmpty, DirMissing
+from core.sorter import FileSorter
+from core.utils import threadsafe_generator
+from core.custom_exceptions import WhyWouldYou, OutDirNotEmpty, DirMissing
 
 
 class MainWindow(wx.Frame):
-    def __init__(self, parent, title):
+    def __init__(self, *args, **kwargs):
+        # setting window properties and panels
+        kwargs["style"] = wx.DEFAULT_FRAME_STYLE
+        wx.Frame.__init__(self, *args, **kwargs)
         # Other Vars ------------------------
         self.is_sorting = False
         self.sorter_thread = None
@@ -25,10 +28,20 @@ class MainWindow(wx.Frame):
         # logger is initialized in load_settings
         self.logger = None
         # Main components ---------------------------------
-        wx.Frame.__init__(self, parent, title=title, size=(650,600), style=wx.DEFAULT_FRAME_STYLE ^ wx.RESIZE_BORDER)
         self.status_bar = self.CreateStatusBar() # A Statusbar in the bottom of the window
-        panel = wx.Panel(self) # Main Panel
         self.SetBackgroundColour('grey')
+
+        # settings and values pickles
+        self.load_settings()
+
+        self.__set_props()
+        self.__do_layout()
+
+
+    def __set_props(self):
+        self.SetTitle("PhotoSorter")
+
+    def __do_layout(self):
 
         # Setting up the menu.
         file_menu = wx.Menu()
@@ -50,11 +63,9 @@ class MainWindow(wx.Frame):
         menu_bar.Append(self.options_menu, "&Options")
         self.SetMenuBar(menu_bar)  # Adding the MenuBar to the Frame content.
 
-
-        ## Content ---------------------------------------
-
         # create some sizers
         content_box = wx.BoxSizer(wx.VERTICAL)
+        message_box = wx.BoxSizer(wx.VERTICAL)
         main_grid = wx.GridBagSizer(hgap=10, vgap=5)
         button_grid = wx.GridBagSizer(hgap=34, vgap=1)
         main_box = wx.BoxSizer(wx.HORIZONTAL)
@@ -70,12 +81,12 @@ class MainWindow(wx.Frame):
         # Files to sort
         s_font = wx.Font(11, wx.MODERN, wx.NORMAL, wx.NORMAL)
         self.files_location = None
-        self.location = wx.StaticText(panel, label="Source:")
+        self.location = wx.StaticText(self, label="Source:")
         self.location.SetFont(s_font)
         self.location.SetForegroundColour("MIDNIGHT BLUE")
         main_grid.Add(self.location, pos=(2,0))
         self.location_input_id = wx.NewId()
-        self.location_input = wx.Button(panel, label="Open", id=self.location_input_id)
+        self.location_input = wx.Button(self, label="Open", id=self.location_input_id)
         self.location_input.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
         self.location_input.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         self.Bind(wx.EVT_BUTTON, self.on_open_location, self.location_input)
@@ -88,7 +99,7 @@ class MainWindow(wx.Frame):
         self.destination.SetForegroundColour("MIDNIGHT BLUE")
         main_grid.Add(self.destination, pos=(3,0))
         self.destination_input_id = wx.NewId()
-        self.destination_input = wx.Button(panel, label="Open", id=self.destination_input_id)
+        self.destination_input = wx.Button(self, label="Open", id=self.destination_input_id)
         self.destination_input.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
         self.destination_input.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         self.Bind(wx.EVT_BUTTON, self.on_open_destination, self.destination_input)
@@ -101,7 +112,7 @@ class MainWindow(wx.Frame):
         main_grid.Add(self.sort_option, pos=(4,0))
         sort_options = ["size","res"]
         self.cb_id = wx.NewId()
-        self.cb = wx.ComboBox(panel,
+        self.cb = wx.ComboBox(self,
                               size=wx.DefaultSize,
                               choices=sort_options,
                               id=self.cb_id)
@@ -112,7 +123,7 @@ class MainWindow(wx.Frame):
 
         # Run button
         self.run_button_id = wx.NewId()
-        self.run_button = wx.Button(panel, label="Run", id=self.run_button_id)
+        self.run_button = wx.Button(self, label="Run", id=self.run_button_id)
         self.Bind(wx.EVT_BUTTON, self.on_run, self.run_button)
         self.run_button.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
         self.run_button.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
@@ -123,7 +134,7 @@ class MainWindow(wx.Frame):
 
         # Clean log button
         self.clean_button_id = wx.NewId()
-        self.clean_button = wx.Button(panel, label="Clean", id=self.clean_button_id)
+        self.clean_button = wx.Button(self, label="Clean", id=self.clean_button_id)
         self.clean_button.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
         self.clean_button.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         self.Bind(wx.EVT_BUTTON, self.on_clean,self.clean_button)
@@ -131,7 +142,7 @@ class MainWindow(wx.Frame):
 
         # Show values button
         self.values_button_id = wx.NewId()
-        self.values_button = wx.Button(panel, label="Show values", id=self.values_button_id)
+        self.values_button = wx.Button(self, label="Show values", id=self.values_button_id)
         self.values_button.Bind(wx.EVT_ENTER_WINDOW, self.on_mouse_enter_button)
         self.values_button.Bind(wx.EVT_LEAVE_WINDOW, self.on_mouse_leave_button)
         self.Bind(wx.EVT_BUTTON, self.on_show_values, self.values_button)
@@ -148,12 +159,6 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_about, menu_about)
         self.Bind(wx.EVT_MENU, self.on_exit, menu_exit)
         self.Bind(wx.EVT_MENU, self.on_save, menu_save)
-
-        # settings and values pickles
-        self.load_settings()
-
-        # Show
-        self.Show()
 
     ## Mouse enter/leave functions ------------------
 
@@ -213,7 +218,6 @@ class MainWindow(wx.Frame):
                 else:
                     self.load_settings()
 
-
     def load_values(self):
         try:
             if self.settings["Keep values"]:
@@ -266,7 +270,6 @@ class MainWindow(wx.Frame):
         self.logger.debug("Saving values:\n%s" % (self.user_values))
         pickle.dump(settings,open("settings.pckl", "wb"))
         pickle.dump(self.user_values,open("values.pckl", "wb"))
-
 
     # directory dialogs
     def on_open_location(self, _):
@@ -371,6 +374,7 @@ class MainWindow(wx.Frame):
 
 if __name__ == '__main__':
     app = wx.App()
-    frame = MainWindow(None, "PhotoSorter")
+    frame = MainWindow(None, wx.ID_ANY, "")
+    app.SetTopWindow(frame)
     frame.Show()
     app.MainLoop()
