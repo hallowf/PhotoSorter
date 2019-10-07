@@ -1,8 +1,8 @@
 import os, shutil, exifread, ntpath, logging
 from datetime import datetime
 from time import localtime, mktime, strftime, strptime
-from custom_exceptions import DirMissing, OutDirNotEmpty, WhyWouldYou
-from image_data import get_image_resolution, get_image_size, get_minimum_creation_time
+from core.custom_exceptions import DirMissing, OutDirNotEmpty, WhyWouldYou
+from core.image_data import get_image_resolution, get_image_size, get_minimum_creation_time
 
 class FileSorter(object):
     """docstring for FileSorter."""
