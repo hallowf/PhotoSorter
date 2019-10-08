@@ -1,9 +1,9 @@
-import os
 import sys
 import argparse
 
 from core.sorter import FileSorter
 from core.custom_exceptions import OutDirNotEmpty, DirMissing, WhyWouldYou
+from core.utils import verify_required
 
 
 def parse_and_return_args():
@@ -22,15 +22,6 @@ def parse_and_return_args():
     parser.add_argument("--skip-copy", help="Works with the original files instead of copying them", action="store_true")
     args = parser.parse_args()
     return args
-
-
-def verify_required(args):
-    if not os.path.isdir(args.from_dir):
-        raise DirMissing("Specified source directory does not exist")
-    elif len(os.listdir(args.from_dir)) <= 0:
-        raise WhyWouldYou("There are not enough files to process")
-    elif len(os.listdir(args.to_dir)) > 0:
-        raise OutDirNotEmpty("Specified destination directory isn't empty")
 
 
 def run_main():
