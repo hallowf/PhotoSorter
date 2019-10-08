@@ -1,16 +1,17 @@
 class DirMissing(Exception):
     """docstring"""
-    pass
+    def __init__(self, message, errors=None):
+        super().__init__(message)
 
 
 class OutDirNotEmpty(Exception):
     """docstring"""
-    pass
+    def __init__(self, message, errors=None):
+        super().__init__(message)
 
 
 class WhyWouldYou(Exception):
     """docstring for WhyWouldYou."""
 
-    def __init__(self, arg):
-        super(WhyWouldYou, self).__init__()
-        self.arg = arg
+    def __init__(self, message, errors=None):
+        super().__init__(message)
