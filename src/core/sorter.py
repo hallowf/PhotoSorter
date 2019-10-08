@@ -19,17 +19,20 @@ class FileSorter(object):
         self.source = os.path.abspath(source)
         self.dest_items = None
         self.difference = kwargs.get("diff", 200)
+        self.keep_filename = kwargs.get("keep_name", False)
         self.skip_copy = kwargs.get("skip_copy", False)
         self.sort_possibilities = ["size", "res"]
-        sort_unknown, sort_unknown_by = kwargs.get("sort_unknown", (True, "size"))
+        sort_remaining, sort_remaining_by = kwargs.get("sort_remaining", (True, "size"))
+        self.sort_remaining = sort_remaining
         # check if sorting parameters are correct and default them if not
-        if sort_unknown is True and sort_unknown_by not in self.sort_possibilities:
-            self.sort_unknown_by = "size"
+        if sort_remaining is True and sort_remaining_by not in self.sort_possibilities:
+            self.sort_remaining_by = "size"
+        else:
+            self.sort_remaining_by = sort_remaining_by
         self.f_map = None
         self.min_evt_delta_days = 4
         self.maxNumberOfFilesPerFolder = 500
         self.split_months = False
-        self.keep_filename = False
         # set up logging
         log_format = "%(name)s - %(level)s: %(message)s"
         logging.basicConfig(format=log_format)
@@ -50,6 +53,25 @@ class FileSorter(object):
         self.totalAmountToCopy = str(self.file_number)
         self.file_counter = 0
 
+    def return_all_options_string(self):
+        source = "\tSource: %s\n" % str(self.source)
+        dest = "\tDestination: %s\n" % str(self.dest)
+        kn = "\tKeep original name: %s\n" % self.keep_filename
+        sk = "\tSkip copy: %s\n" % self.skip_copy
+        sr = "\tSort remaining: %s\n" % self.sort_remaining
+        sb = "\tSort remaining by: %s\n" % self.sort_remaining_by
+        df = "\tSplitting by: %i\n" % self.difference
+
+        all_options = "%s%s%s%s%s%s%s" % (source,
+                                          dest,
+                                          kn,
+                                          sk,
+                                          sr,
+                                          sb,
+                                          df)
+        msg = "Input values:\n %s" % all_options
+        return msg
+
     def check_location(self, skip_some=False):
         if not skip_some:
             self.logger.debug("Checking source and destination before starting")
@@ -59,7 +81,6 @@ class FileSorter(object):
                 os.mkdir(self.dest)
         self.logger.debug("Listing folders and sub-folders")
         self.loc_items = os.listdir(self.source)
-        print(len(self.loc_items))
         if len(self.loc_items) == 1:
             if os.path.isdir(os.path.join(self.source, self.loc_items[0])):
                 self.source = os.path.abspath(os.path.join(self.source, self.loc_items[0]))
@@ -113,10 +134,10 @@ class FileSorter(object):
         final_dest = os.path.join(self.dest, "PROCESSED")
         self.logger.info("Sorting images in %s by date" % (final_dest))
         self.postprocess_images(final_dest, self.min_evt_delta_days, self.split_months)
-        if self.sort_unknown:
-            self.logger.info("Sorting unknown files by %s" % (self.sort_unknown_by))
-            yield "Sorting unknown files by %s\n" % (self.sort_unknown_by)
-            map_func = self.map_by_size if self.sort_unknown_by == "size" else self.map_by_res
+        if self.sort_remaining:
+            self.logger.info("Sorting unknown files by %s" % (self.sort_remaining_by))
+            yield "Sorting unknown files by %s\n" % (self.sort_remaining_by)
+            map_func = self.map_by_size if self.sort_remaining_by == "size" else self.map_by_res
             map_func(final_dest)
         yield "Done\n"
 
@@ -173,7 +194,7 @@ class FileSorter(object):
             file_name = ntpath.basename(img_tuple[1])
 
             if(creation_date == today):
-                if self.sort_unknown:
+                if self.sort_remaining:
                     dest = os.path.join(dest_root, "unknown-to-sort")
                     if not os.path.isdir(dest):
                         os.mkdir(dest)
