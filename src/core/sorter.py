@@ -1,30 +1,35 @@
-import os, shutil, exifread, ntpath, logging
+import os
+import shutil
+import exifread
+import ntpath
+import logging
 from datetime import datetime
 from time import localtime, mktime, strftime, strptime
 from core.custom_exceptions import DirMissing, OutDirNotEmpty, WhyWouldYou
 from core.image_data import get_image_resolution, get_image_size, get_minimum_creation_time
 
+
 class FileSorter(object):
     """docstring for FileSorter."""
 
-    def __init__(self, source, dest, difference=200, sort_unknown=(True,"size")):
+    def __init__(self, source, dest, **kwargs):
         super(FileSorter, self).__init__()
         # File sorting parameters
         self.dest = os.path.abspath(dest)
         self.source = os.path.abspath(source)
         self.dest_items = None
-        self.difference = difference
+        self.difference = kwargs.get("diff", 200)
+        self.skip_copy = kwargs.get("skip_copy", False)
+        self.sort_possibilities = ["size", "res"]
+        sort_unknown, sort_unknown_by = kwargs.get("sort_unknown", (True, "size"))
+        # check if sorting parameters are correct and default them if not
+        if sort_unknown is True and sort_unknown_by not in self.sort_possibilities:
+            self.sort_unknown_by = "size"
         self.f_map = None
         self.min_evt_delta_days = 4
         self.maxNumberOfFilesPerFolder = 500
         self.split_months = False
         self.keep_filename = False
-        self.sort_possibilities = ["size","res"]
-        sort_unknown, sort_unknown_by = sort_unknown
-        # check if sorting parameters are correct and default them if not
-        if sort_unknown == True and sort_unknown_by not in self.sort_possibilities:
-            self.sort_unknown = sort_unknown
-            self.sort_unknown_by = "size"
         # set up logging
         log_format = "%(name)s - %(level)s: %(message)s"
         logging.basicConfig(format=log_format)
@@ -37,7 +42,7 @@ class FileSorter(object):
         self.sized_dirs = []
         times = 1
         for i in range(10):
-            self.sized_dirs.append(difference*times)
+            self.sized_dirs.append(self.difference * times)
             times = times+1
         # File info
         self.file_number = self.get_number_of_files(source)
@@ -45,8 +50,27 @@ class FileSorter(object):
         self.totalAmountToCopy = str(self.file_number)
         self.file_counter = 0
 
+    def check_location(self, skip_some=False):
+        self.logger.info("Checking source and destination before starting")
+        loc_items = os.listdir(self.source)
+        if not skip_some:
+            if not os.path.isdir(self.source):
+                raise DirMissing("Source folder does not exist")
+            if not os.path.isdir(self.dest):
+                os.mkdir(self.dest)
+            self.loc_items = os.listdir(self.source)
+            self.dest_items = os.listdir(self.dest)
+            if len(self.dest_items) >= 1:
+                raise OutDirNotEmpty("Output directory is not empty")
+        if len(loc_items) == 1:
+            if os.path.isdir(os.path.join(self.source, loc_items[0])):
+                self.source = os.path.abspath(os.path.join(self.source, self.loc_items[0]))
+                self.check_location(True)
+            else:
+                raise WhyWouldYou("There are too few files to process...")
+
     # Returns number of files from start dir
-    def get_number_of_files(self, start_path = '.'):
+    def get_number_of_files(self, start_path='.'):
         self.logger.debug("Checking number of files to sort")
         number_of_files = 0
         for dirpath, dirnames, filenames in os.walk(start_path):
@@ -79,7 +103,7 @@ class FileSorter(object):
 
                 # check and yield progress
                 self.file_counter += 1
-                if(round(self.file_counter%self.one_percent_files,1) == 0.1):
+                if(round(self.file_counter % self.one_percent_files, 1) == 0.1):
                     self.logger.info(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.")
                     yield(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.\n")
 
@@ -104,7 +128,6 @@ class FileSorter(object):
 
         self.write_images(images, image_dir, min_evt_delta_days, split_by_month)
 
-
     def postprocess_image(self, images, image_directory, file_name):
         image_path = os.path.join(image_directory, file_name)
         image = open(image_path, 'rb')
@@ -112,8 +135,9 @@ class FileSorter(object):
         try:
             exifTags = exifread.process_file(image, details=False)
             creation_time = get_minimum_creation_time(exifTags)
-        except:
+        except Exception as e:
             self.logger.warning("invalid exif tags for %s" % (file_name))
+            self.logger.debug("Exception: %s" % (str(e)))
             yield "invalid exif tags for %s\n" % (file_name)
 
         # distinct different time types
@@ -122,13 +146,14 @@ class FileSorter(object):
         else:
             try:
                 creation_time = strptime(str(creation_time), "%Y:%m:%d %H:%M:%S")
-            except:
+            except Exception as e:
+                self.logger.debug("Exception: %s" % (str(e)))
                 creation_time = localtime(os.path.getctime(image_path))
         images.append((mktime(creation_time), image_path))
         image.close()
 
     def write_images(self, images, dest_root, min_evt_delta_days, split_by_month=False):
-        min_evt_delta = min_evt_delta_days * 60 * 60 * 24 # convert in seconds
+        min_evt_delta = min_evt_delta_days * 60 * 60 * 24  # convert in seconds
         sorted_images = sorted(images)
         previous_time = None
         evt_number = 0
@@ -150,14 +175,14 @@ class FileSorter(object):
                     dest = os.path.join(dest_root, "unknown-to-sort")
                     if not os.path.isdir(dest):
                         os.mkdir(dest)
-                    dest_file_path = os.path.join(dest,file_name)
+                    dest_file_path = os.path.join(dest, file_name)
                 else:
                     self.create_unknown_date_folder(dest_root)
                     dest = os.path.join(dest_root, "unknown")
                     dest_file_path = os.path.join(dest, file_name)
             else:
                 self.logger.debug("%s was created in %s" % (file_name, creation_date))
-                if (previous_time == None) or ((previous_time + min_evt_delta) < img_tuple[0]):
+                if (previous_time is None) or ((previous_time + min_evt_delta) < img_tuple[0]):
                     evt_number = evt_number + 1
                     self.create_new_folder(dest_root, year, month, evt_number)
 
@@ -182,12 +207,12 @@ class FileSorter(object):
                 if (os.path.exists(img_tuple[1])):
                     os.remove(img_tuple[1])
 
-    def create_unknown_date_folder(self,dest_root):
+    def create_unknown_date_folder(self, dest_root):
         path = os.path.join(dest_root, "unknown")
         if not os.path.exists(path):
             os.makedirs(path)
 
-    def create_new_folder(self,dest_root, year, month, evt_number):
+    def create_new_folder(self, dest_root, year, month, evt_number):
         if month is not None:
             new_path = os.path.join(dest_root, year, month, str(evt_number))
         else:
@@ -195,32 +220,13 @@ class FileSorter(object):
         if not os.path.exists(new_path):
             os.makedirs(new_path)
 
-    def check_location(self, skip_some=False):
-        self.logger.info("Checking source and destination before starting")
-        loc_items = os.listdir(self.source)
-        if not skip_some:
-            if not os.path.isdir(self.source):
-                raise DirMissing
-            if not os.path.isdir(self.dest):
-                os.mkdir(self.dest)
-            self.loc_items = os.listdir(self.source)
-            self.dest_items = os.listdir(self.dest)
-            if len(self.dest_items) >= 1:
-                raise OutDirNotEmpty
-        if len(loc_items) == 1:
-            if os.path.isdir(os.path.join(self.source, loc_items[0])):
-                self.source = os.path.abspath(os.path.join(self.source, self.loc_items[0]))
-                self.check_location(True)
-            else:
-                raise WhyWouldYou
-
     def map_by_size(self, source):
         yield "Mapping by size"
-        f_map = {size:[] for size in reversed(self.sized_dirs)}
+        f_map = {size: [] for size in reversed(self.sized_dirs)}
         for root, sub_folders, files in os.walk(source):
             for file in files:
                 found = False
-                f_path = os.path.join(root,file)
+                f_path = os.path.join(root, file)
                 x = get_image_size(f_path)
                 for size in f_map:
                     if not found:
@@ -232,12 +238,12 @@ class FileSorter(object):
 
     def map_by_res(self, source):
         yield "Mapping by res"
-        f_map = {size:[] for size in reversed(self.sized_dirs)}
+        f_map = {size: [] for size in reversed(self.sized_dirs)}
         for root, sub_folders, files in os.walk(source):
             for file in files:
                 found = False
-                f_path = os.path.join(root,file)
-                x,y = get_image_resolution(f_path)
+                f_path = os.path.join(root, file)
+                x, y = get_image_resolution(f_path)
                 for size in f_map:
                     if not found:
                         if x >= size or y >= size:

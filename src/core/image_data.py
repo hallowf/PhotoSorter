@@ -36,7 +36,7 @@ def get_image_resolution(image):
             width, height = img.size
             res = (width, height)
     except Exception as e:
-        raise
+        raise e
     return res
 
 
@@ -45,5 +45,5 @@ def get_image_size(image):
     try:
         size = os.stat(image).st_size
     except Exception as e:
-        raise
+        raise e
     return size
