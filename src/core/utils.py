@@ -1,16 +1,11 @@
-def threadsafe_generator(f):
-    def g(*a, **kw):
-        return ThreadsafeIter(f(*a, **kw))
-    return g
+import os
+from .custom_exceptions import DirMissing, WhyWouldYou, OutDirNotEmpty
 
-class ThreadsafeIter():
-    def __init__(self, it):
-        self.it = it
-        self.lock = threading.lock()
 
-    def __iter__(self):
-        return self
-
-    def next(self):
-        with self.lock:
-            return self.it.next()
+def verify_required(args):
+    if not os.path.isdir(args.from_dir):
+        raise DirMissing("Specified source directory does not exist")
+    elif len(os.listdir(args.from_dir)) <= 0:
+        raise WhyWouldYou("There are not enough files to process")
+    elif len(os.listdir(args.to_dir)) > 0:
+        raise OutDirNotEmpty("Specified destination directory isn't empty")

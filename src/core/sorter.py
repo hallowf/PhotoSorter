@@ -5,8 +5,8 @@ import ntpath
 import logging
 from datetime import datetime
 from time import localtime, mktime, strftime, strptime
-from core.custom_exceptions import DirMissing, OutDirNotEmpty, WhyWouldYou
-from core.image_data import get_image_resolution, get_image_size, get_minimum_creation_time
+from .custom_exceptions import DirMissing, OutDirNotEmpty, WhyWouldYou
+from .image_data import get_image_resolution, get_image_size, get_minimum_creation_time
 
 
 class FileSorter(object):
@@ -51,23 +51,25 @@ class FileSorter(object):
         self.file_counter = 0
 
     def check_location(self, skip_some=False):
-        self.logger.info("Checking source and destination before starting")
-        loc_items = os.listdir(self.source)
         if not skip_some:
+            self.logger.debug("Checking source and destination before starting")
             if not os.path.isdir(self.source):
                 raise DirMissing("Source folder does not exist")
             if not os.path.isdir(self.dest):
                 os.mkdir(self.dest)
-            self.loc_items = os.listdir(self.source)
-            self.dest_items = os.listdir(self.dest)
-            if len(self.dest_items) >= 1:
-                raise OutDirNotEmpty("Output directory is not empty")
-        if len(loc_items) == 1:
-            if os.path.isdir(os.path.join(self.source, loc_items[0])):
+        self.logger.debug("Listing folders and sub-folders")
+        self.loc_items = os.listdir(self.source)
+        print(len(self.loc_items))
+        if len(self.loc_items) == 1:
+            if os.path.isdir(os.path.join(self.source, self.loc_items[0])):
                 self.source = os.path.abspath(os.path.join(self.source, self.loc_items[0]))
-                self.check_location(True)
-            else:
-                raise WhyWouldYou("There are too few files to process...")
+                print(self.source)
+                self.check_location(skip_some=True)
+        elif len(self.loc_items) == 0:
+            raise WhyWouldYou("There are too few files to process...")
+        self.dest_items = os.listdir(self.dest)
+        if len(self.dest_items) >= 1:
+            raise OutDirNotEmpty("Output directory is not empty")
 
     # Returns number of files from start dir
     def get_number_of_files(self, start_path='.'):
