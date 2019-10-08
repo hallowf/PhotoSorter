@@ -1,6 +1,7 @@
-import shutil, argparse
+import argparse
 
 from core.sorter import FileSorter
+
 
 def parse_and_return_args():
     description = (

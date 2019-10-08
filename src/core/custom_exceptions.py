@@ -2,9 +2,11 @@ class DirMissing(Exception):
     """docstring"""
     pass
 
+
 class OutDirNotEmpty(Exception):
     """docstring"""
     pass
+
 
 class WhyWouldYou(Exception):
     """docstring for WhyWouldYou."""
