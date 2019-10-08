@@ -7,7 +7,6 @@ import sys
 import PIL
 import wx
 from core.sorter import FileSorter
-from core.utils import threadsafe_generator
 from core.custom_exceptions import WhyWouldYou, OutDirNotEmpty, DirMissing
 
 
