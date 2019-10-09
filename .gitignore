@@ -1,6 +1,7 @@
 TEST_IMAGES
 TEST_OUTPUT
 __pycache__
+_site
 venv
 sort-*
 *.pckl
