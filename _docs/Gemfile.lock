@@ -30,7 +30,7 @@ GEM
     ffi (1.11.1)
     forwardable-extended (2.6.0)
     gemoji (3.0.1)
-    github-pages (201)
+    github-pages (202)
       activesupport (= 4.2.11.1)
       github-pages-health-check (= 1.16.1)
       jekyll (= 3.8.5)
@@ -124,6 +124,8 @@ GEM
     jekyll-mentions (1.4.1)
       html-pipeline (~> 2.3)
       jekyll (~> 3.0)
+    jekyll-multiple-languages-plugin (1.6.0)
+      jekyll (>= 2.0, < 4.0)
     jekyll-optional-front-matter (0.3.0)
       jekyll (~> 3.0)
     jekyll-paginate (1.1.0)
@@ -250,6 +252,7 @@ PLATFORMS
 DEPENDENCIES
   github-pages
   jekyll-feed (~> 0.6)
+  jekyll-multiple-languages-plugin
   just-the-docs
   tzinfo-data
 

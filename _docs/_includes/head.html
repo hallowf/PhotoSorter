@@ -1,0 +1,61 @@
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+  {% if site.ga_tracking != nil %}
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ site.ga_tracking }}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '{{ site.ga_tracking }}', {
+        'cookie_prefix': 'STPDFdocs',
+        'anonymize_ip': true
+      });
+    </script>
+  {% endif %}
+
+  <title>{% t page.title %} - {{ site.title }}</title>
+  <!-- <title>{{% t page.title %}} - {{ site.title }}</title> -->
+
+  {% if site.plugins.jekyll-seo == nil %}
+    {% if page.description %}
+    <meta name="Description" content="{{ page.description }}">
+    {% endif %}
+  {% endif %}
+
+  <link rel="shortcut icon" href="{{ '/favicon.ico' | prepend: site.baseurl_root }}" type="image/x-icon"/>
+
+  <link rel="stylesheet" href="{{ '/assets/css/just-the-docs.css' | prepend: site.baseurl_root }}" />
+  
+  <!-- Language switcher -->
+  <script>
+    window.onload = function() {
+      let lang = document.getElementById("languageSwitches")
+      lang.value = "{{ site.lang }}"
+    }
+  </script>
+  <script>
+    function languageSwitcher() {
+      let lang = document.getElementById("languageSwitches")
+      let baseurlRoot = window.origin
+      if (lang.value !== "en") {
+        let newUrl = baseurlRoot + "/STPDF-docs/" + lang.value + "/home"
+        window.location.href = newUrl    
+      }
+      else {
+        let newUrl = baseurlRoot + "/STPDF-docs/home"
+        window.location.href = newUrl
+      }
+    }
+  </script>
+
+  {% if site.search_enabled != nil %}
+    <script type="text/javascript" src="{{ "/assets/js/vendor/lunr.min.js" | prepend: site.baseurl_root }}"></script>
+  {% endif %}
+  <script type="text/javascript" src="{{ "/assets/js/just-the-docs.js" | prepend: site.baseurl_root }}"></script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+{% seo %}
+</head>

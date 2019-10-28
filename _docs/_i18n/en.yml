@@ -1,0 +1,17 @@
+global:
+  translations: ["en", "pt"]
+  portuguese: Portuguese
+  english: English
+  toc: "Table of contents"
+  search: "Search"
+  uses: "This site uses "
+  jtd: " a documentation theme for Jekyll"
+  language: "Language"
+
+titles:
+  home: "Home"
+  about: "About"
+  help: "Help"
+
+headers:
+  features: "Features"

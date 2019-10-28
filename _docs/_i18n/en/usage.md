@@ -1,10 +1,3 @@
----
-layout: page
-title: Usage
-permalink: /usage/
-nav_order: 1
----
-
 # Usage
 
 PhotoSorter is based of [sort-PhotorecRecoveredFiles](https://github.com/tfrdidi/sort-PhotorecRecoveredFiles)
