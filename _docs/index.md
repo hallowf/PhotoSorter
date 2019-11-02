@@ -6,7 +6,18 @@ layout: page
 title: Usage
 permalink: /
 nav_order: 0
+has_children: true
 ---
 
+<!-- upcoming features -->
+## {% t headers.up_features %}
 
-<p>some text about home</p>
+{% tf home/up_features.md %}
+
+<!-- features -->
+## {% t headers.features %}
+
+{% tf home/features.md %}
+
+
+## {% t headers.localization %}
