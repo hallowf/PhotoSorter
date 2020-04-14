@@ -6,8 +6,8 @@ import ntpath
 import logging
 from datetime import datetime
 from time import localtime, mktime, strftime, strptime
-from .custom_exceptions import DirMissing, OutDirNotEmpty, WhyWouldYou
-from .image_data import get_image_resolution, get_image_size, get_minimum_creation_time
+from core.custom_exceptions import DirMissing, OutDirNotEmpty, WhyWouldYou
+from core.image_data import get_image_resolution, get_image_size, get_minimum_creation_time
 
 
 class FileSorter(object):
@@ -60,10 +60,11 @@ class FileSorter(object):
     def create_sized_dirs(self):
         times = 1
         for i in range(10):
-            dir_name = os.path.join(self.dest, self.difference * times)
+            dir_name = os.path.join(self.dest, str(self.difference * times))
             if not os.path.isdir(dir_name):
                 os.mkdir(dir_name)
             times += 1
+        print("Created size dirs")
 
     # Gets number of files to sort
     def get_number_of_files(self):
@@ -79,35 +80,19 @@ class FileSorter(object):
     # Main function for sorting
     def sort_all(self):
         # iterate trough all files in source
+        print("iterating trough all source files")
         for root, dirs, files in os.walk(self.source, topdown=False):
             for file in files:
                 extension = os.path.splitext(file)[1][1:].lower()
                 source_path = os.path.join(root, file)
                 destination_dir = os.path.join(self.dest, extension)
+                file_name = "%s.%s"  % (self.file_counter, extension)
 
                 if not os.path.exists(destination_dir):
                     os.mkdir(destination_dir)
                 if self.keep_filename:
                     file_name = file
-                else:
-                    file_name = "%s.%s" % (self.file_counter,extension)
-
-                destination_file = os.path.join(destination_dir, file_name)
-                if not os.path.exists(destination_file):
-                    shutil.copy2(source_path, destination_file)
-
-                # check and yield progress
-                self.file_counter += 1
-                if(round(self.file_counter % self.one_percent_files, 1) == 0.1):
-                    msg = "%s / %s processed." % (self.file_counter, self.file_number)
-                    self.logger.info(msg)
-                    yield(msg + "\n")
-
-        # this needs to be moved onto another function to avoid a high cyclomatic complexity
-        final_dest = os.path.join(self.dest, "PROCESSED")
-        self.logger.info("Sorting images in %s by date" % (final_dest))
-        for img in self.postprocess_images(final_dest):
-            print(img)
+        print("Finished sorting")
 
     # Iterates trough the processed image dir, processes each individual file
     # and yields the processed image
@@ -147,8 +132,8 @@ class FileSorter(object):
         return (mktime(creation_time), image_path)
         image.close()
 
-    def write_image(self, img_tuple, dest_root, min_evt_delta_days, split_by_month=False):
-        min_evt_delta = min_evt_delta_days * 60 * 60 * 24  # convert in seconds
+    def write_image(self, img_tuple):
+        min_evt_delta = self.min_evt_delta_days * 60 * 60 * 24  # convert in seconds
         previous_time = None
         evt_number = 0
         previous_dest = None
@@ -159,37 +144,36 @@ class FileSorter(object):
         dest_file_path = ""
         t = localtime(img_tuple[0])
         year = strftime("%Y", t)
-        month = split_by_month and strftime("%m", t) or None
+        month = self.split_months and strftime("%m", t) or None
         creation_date = strftime("%d/%m/%Y", t)
         file_name = ntpath.basename(img_tuple[1])
 
         if(creation_date == today):
             if self.sort_remaining:
-                dest = os.path.join(dest_root, "unknown-to-sort")
+                dest = os.path.join(self.dest, "unknown-to-sort")
                 if not os.path.isdir(dest):
                     os.mkdir(dest)
                 dest_file_path = os.path.join(dest, file_name)
             else:
-                self.create_unknown_date_folder(dest_root)
-                dest = os.path.join(dest_root, "unknown")
+                self.create_unknown_date_folder(self.dest)
+                dest = os.path.join(self.dest, "unknown")
                 dest_file_path = os.path.join(dest, file_name)
         else:
             self.logger.debug("%s was created in %s" % (file_name, creation_date))
             if (previous_time is None) or ((previous_time + min_evt_delta) < img_tuple[0]):
                 evt_number = evt_number + 1
-                self.create_new_folder(dest_root, year, month, evt_number)
+                self.create_new_folder(self.dest, year, month, evt_number)
 
             previous_time = img_tuple[0]
 
-            dest_components = [dest_root, year, month, str(evt_number)]
+            dest_components = [self.dest, year, month, str(evt_number)]
             dest_components = [v for v in dest_components if v is not None]
             dest = os.path.join(*dest_components)
 
             # it may be possible that an event covers 2 years.
             # in such a case put all the images to the event in the old year
             if not (os.path.exists(dest)):
-                dest = previous_dest
-                # dest = os.path.join(dest_root, str(int(year) - 1), str(evt_number))
+                dest = os.path.join(self.dest, str(int(year) - 1), str(evt_number))
 
             previous_dest = dest
             dest_file_path = os.path.join(dest, file_name)
@@ -201,15 +185,15 @@ class FileSorter(object):
                 os.remove(img_tuple[1])
 
 
-    def create_unknown_date_folder(self, dest_root):
-        path = os.path.join(dest_root, "unknown")
+    def create_unknown_date_folder(self):
+        path = os.path.join(self.dest, "unknown")
         if not os.path.exists(path):
             os.makedirs(path)
 
-    def create_new_folder(self, dest_root, year, month, evt_number):
+    def create_new_folder(self, year, month, evt_number):
         if month is not None:
-            new_path = os.path.join(dest_root, year, month, str(evt_number))
+            new_path = os.path.join(self.dest, year, month, str(evt_number))
         else:
-            new_path = os.path.join(dest_root, year, str(evt_number))
+            new_path = os.path.join(self.dest, year, str(evt_number))
         if not os.path.exists(new_path):
             os.makedirs(new_path)

@@ -55,11 +55,16 @@ def run_main():
                         keep_name=kn,
                         skip_copy=sk,
                         sort_unknown=(sr, sb))
+    try:
+        sorter.sort_all()
+    except:
+        raise
+    
 
 
 if __name__ == '__main__':
     try:
         run_main()
     except Exception as e:
-        print(e)
+        raise e
         sys.exit(1)
