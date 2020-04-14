@@ -38,6 +38,7 @@ class FileSorter(object):
         self.file_counter = 0
         self.create_sized_dirs()
 
+    # Create directories to sort by size
     def create_sized_dirs(self):
         times = 1
         for i in range(10):
@@ -55,3 +56,27 @@ class FileSorter(object):
                     number_of_files += 1
         self.logger.debug("Found %s files" % (number_of_files))
         return number_of_files
+
+    def postprocess_image(self, image_directory, file_name):
+        image_path = os.path.join(image_directory, file_name)
+        image = open(image_path, 'rb')
+        creation_time = None
+        try:
+            exifTags = exifread.process_file(image, details=False)
+            creation_time = get_minimum_creation_time(exifTags)
+        except Exception as e:
+            self.logger.warning("invalid exif tags for %s" % (file_name))
+            self.logger.debug("Exception: %s" % (str(e)))
+            yield "invalid exif tags for %s\n" % (file_name)
+
+        # distinct different time types
+        if creation_time is None:
+            creation_time = localtime(os.path.getctime(image_path))
+        else:
+            try:
+                creation_time = strptime(str(creation_time), "%Y:%m:%d %H:%M:%S")
+            except Exception as e:
+                # self.logger.debug("Exception: %s" % (str(e)))
+                creation_time = localtime(os.path.getctime(image_path))
+        return (mktime(creation_time), image_path)
+        image.close()

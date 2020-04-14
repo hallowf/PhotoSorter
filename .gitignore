@@ -6,3 +6,4 @@ venv
 sort-*
 *.pckl
 *.whl
+*.vscode
