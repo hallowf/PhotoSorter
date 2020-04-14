@@ -21,7 +21,7 @@ class TestFileSorterVerifier(unittest.TestCase):
 
     def test_raises_on_missing_source(self):
         """
-        Test that checks if an exception is raised
+        Checks if an exception is raised
         when the source directory does not exist
         """
         with self.assertRaises(DirMissing):
@@ -39,7 +39,7 @@ class TestFileSorterVerifier(unittest.TestCase):
 class TestUtilsVerifier(unittest.TestCase):
     def test_raises_on_missing_source(self):
         """
-        Test that checks if an exception is raised
+        Checks if an exception is raised
         when the source directory does not exist
         """
         args = Namespace(from_dir="/a_path_that_does_not_exist",
