@@ -35,8 +35,15 @@ class FileSorter(object):
         self.split_months = False
         self.file_number = self.get_number_of_files()
         self.one_percent_files = self.file_number/100
-        self.totalAmountToCopy = str(self.file_number)
         self.file_counter = 0
+        self.create_sized_dirs()
+
+    def create_sized_dirs(self):
+        times = 1
+        for i in range(10):
+            dir_name = os.path.join(self.dest, self.difference * times)
+            os.mkdir(dir_name)
+            times = times + 1
 
     # Gets number of files to sort
     def get_number_of_files(self):
