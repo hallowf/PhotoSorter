@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import exifread
 import ntpath
@@ -21,6 +22,7 @@ class FileSorter(object):
         self.difference = kwargs.get("diff", 200)
         self.keep_filename = kwargs.get("keep_name", False)
         self.skip_copy = kwargs.get("skip_copy", False)
+        self.log_level = kwargs.get("log_level", "info")
         self.sort_possibilities = ["size", "res"]
         sort_remaining, sort_remaining_by = kwargs.get("sort_unknown", (True, "size"))
         self.sort_remaining = sort_remaining
@@ -38,6 +40,21 @@ class FileSorter(object):
         self.file_counter = 0
         self.create_sized_dirs()
 
+    def set_up_logger(self):
+        n_level = getattr(logging, self.log_level.upper(), 20)
+        if n_level == 20 and self.log_level.upper() != "INFO":
+            sys.stdout.write("%s: %s\n" % ("Invalid log level", self.log_level))
+        # Console logger
+        formatter = logging.Formatter("%(name)s - %(levelname)s: %(message)s")
+        self.logger = logging.getLogger("STPDF.Core")
+        self.logger.setLevel(n_level)
+        ch = logging.StreamHandler()
+        ch.setFormatter(formatter)
+        ch.setLevel(n_level)
+        self.logger.addHandler(ch)
+        msg = "%s: %s" % ("Core logger is set with log level", self.log_level)
+        self.logger.info(msg)
+
     # Create directories to sort by size
     def create_sized_dirs(self):
         times = 1
@@ -54,11 +71,11 @@ class FileSorter(object):
                 fp = os.path.join(dirpath, f)
                 if(os.path.isfile(fp)):
                     number_of_files += 1
-        self.logger.debug("Found %s files" % (number_of_files))
+        # self.logger.debug("Found %s files" % (number_of_files))
         return number_of_files
 
     # Iterates trough the processed image dir, processes each individual file
-    # and passes the images to write_images
+    # and yield the processed image
     def postprocess_images(self, image_dir, min_evt_delta_days, split_by_month):
         for root, dirs, files in os.walk(image_dir):
             for file in files:
@@ -72,8 +89,8 @@ class FileSorter(object):
             exifTags = exifread.process_file(image, details=False)
             creation_time = get_minimum_creation_time(exifTags)
         except Exception as e:
-            self.logger.warning("invalid exif tags for %s" % (file_name))
-            self.logger.debug("Exception: %s" % (str(e)))
+            # self.logger.warning("invalid exif tags for %s" % (file_name))
+            # self.logger.debug("Exception: %s" % (str(e)))
             yield "invalid exif tags for %s\n" % (file_name)
 
         # distinct different time types
