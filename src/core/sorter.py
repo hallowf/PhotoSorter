@@ -24,6 +24,7 @@ class FileSorter(object):
         self.skip_copy = kwargs.get("skip_copy", False)
         self.log_level = kwargs.get("log_level", "info")
         self.sort_possibilities = ["size", "res"]
+        self.known_image_extensions = ["jpg", "png"]
         sort_remaining, sort_remaining_by = kwargs.get("sort_unknown", (True, "size"))
         self.sort_remaining = sort_remaining
         # check if sorting parameters are correct and default them if not
@@ -55,13 +56,14 @@ class FileSorter(object):
         msg = "%s: %s" % ("Core logger is set with log level", self.log_level)
         self.logger.info(msg)
 
-    # Create directories to sort by size
+    # Create directories to sort by size/res
     def create_sized_dirs(self):
         times = 1
         for i in range(10):
             dir_name = os.path.join(self.dest, self.difference * times)
-            os.mkdir(dir_name)
-            times = times + 1
+            if not os.path.isdir(dir_name):
+                os.mkdir(dir_name)
+            times += 1
 
     # Gets number of files to sort
     def get_number_of_files(self):
@@ -74,12 +76,48 @@ class FileSorter(object):
         # self.logger.debug("Found %s files" % (number_of_files))
         return number_of_files
 
+    # Main function for sorting
+    def sort_all(self):
+        # iterate trough all files in source
+        for root, dirs, files in os.walk(self.source, topdown=False):
+            for file in files:
+                extension = os.path.splitext(file)[1][1:].lower()
+                source_path = os.path.join(root, file)
+                destination_dir = os.path.join(self.dest, extension)
+
+                if not os.path.exists(destination_dir):
+                    os.mkdir(destination_dir)
+                if self.keep_filename:
+                    file_name = file
+                else:
+                    file_name = "%s.%s" % (self.file_counter,extension)
+
+                destination_file = os.path.join(destination_dir, file_name)
+                if not os.path.exists(destination_file):
+                    shutil.copy2(source_path, destination_file)
+
+                # check and yield progress
+                self.file_counter += 1
+                if(round(self.file_counter % self.one_percent_files, 1) == 0.1):
+                    self.logger.info(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.")
+                    yield(str(self.file_counter) + " / " + self.totalAmountToCopy + " processed.\n")
+
+        # this needs to be moved onto another function to avoid a high cyclomatic complexity
+        final_dest = os.path.join(self.dest, "PROCESSED")
+        self.logger.info("Sorting images in %s by date" % (final_dest))
+        for img in self.postprocess_images(final_dest, self.min_evt_delta_days, self.split_months):
+            print(img)
+
     # Iterates trough the processed image dir, processes each individual file
     # and yield the processed image
     def postprocess_images(self, image_dir, min_evt_delta_days, split_by_month):
         for root, dirs, files in os.walk(image_dir):
             for file in files:
-                yield self.postprocess_image(image_dir, file)
+                extension = os.path.splitext(file)[1][1:].lower()
+                if extension  in self.known_image_extensions:
+                    yield self.postprocess_image(image_dir, file)
+                else:
+                    print("Skipping file %s, not an image" % file)
 
     def postprocess_image(self, image_directory, file_name):
         image_path = os.path.join(image_directory, file_name)
