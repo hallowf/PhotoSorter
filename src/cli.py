@@ -36,8 +36,7 @@ def parse_and_return_args():
 
 def run_main():
     args = parse_and_return_args()
-    msg = "Verifying paths before proceeding"
-    sys.stdout.write(msg + "\n")
+    print("Verifying paths before proceeding")
     try:
         verify_required(args)
     except (WhyWouldYou, OutDirNotEmpty, DirMissing) as e:
@@ -49,23 +48,18 @@ def run_main():
     sr = args.sort_remaining
     sb = args.sort_by
     df = args.difference
-    msg = "Initializing FileSorter"
-    sys.stdout.write(msg + "\n")
-    try:
-        sorter = FileSorter(source,
-                            dest,
-                            diff=df,
-                            keep_name=kn,
-                            skip_copy=sk,
-                            sort_unknown=(sr, sb))
-        sys.stdout.write(sorter.return_all_options_string())
-    except (WhyWouldYou, OutDirNotEmpty, DirMissing) as e:
-        raise e
+    print("Initializing FileSorter")
+    sorter = FileSorter(source,
+                        dest,
+                        diff=df,
+                        keep_name=kn,
+                        skip_copy=sk,
+                        sort_unknown=(sr, sb))
 
 
 if __name__ == '__main__':
     try:
         run_main()
     except Exception as e:
-        sys.stdout.write("\n" + str(e) + "\n")
+        print(e)
         sys.exit(1)
