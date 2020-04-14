@@ -8,7 +8,7 @@ def get_minimum_creation_time(exif_data):
     date_time_original = exif_data.get('EXIF DateTimeOriginal')
     date_time_digitized = exif_data.get('EXIF DateTimeDigitized')
 
-    # 3 differnt time fields that can be set independently result in 9 if-cases
+    # 3 different time fields that can be set independently result in 9 if-cases
     if (date_time is None):
         if (date_time_original is None):
             # case 1/9: dateTime, dateTimeOriginal,
