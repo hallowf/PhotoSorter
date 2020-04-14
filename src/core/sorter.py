@@ -57,6 +57,13 @@ class FileSorter(object):
         self.logger.debug("Found %s files" % (number_of_files))
         return number_of_files
 
+    # Iterates trough the processed image dir, processes each individual file
+    # and passes the images to write_images
+    def postprocess_images(self, image_dir, min_evt_delta_days, split_by_month):
+        for root, dirs, files in os.walk(image_dir):
+            for file in files:
+                yield self.postprocess_image(image_dir, file)
+
     def postprocess_image(self, image_directory, file_name):
         image_path = os.path.join(image_directory, file_name)
         image = open(image_path, 'rb')
